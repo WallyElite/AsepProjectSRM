@@ -5,9 +5,9 @@ import matplotlib.animation as animation
 from matplotlib.widgets import Button
 
 # ── Tune these ────────────────────────────────────────────────────────────────
-Kp = 10.0
-Ki =  0.1
-Kd =  2.0
+Kp = 20.0 #10.0
+Ki =  0.2 #0.1
+Kd =  2 #2.0
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Spec parameters
