@@ -54,6 +54,72 @@ def step():
     state["theta"]     = np.clip(state["theta"] + state["theta_dot"] * dt,
                                  -THETA_CLAMP, THETA_CLAMP)
 
+# ── Batch simulation ──────────────────────────────────────────────────────────
+CONFIGS = {
+    "A: Kp=10 Ki=0.1 Kd=2.0": (10.0, 0.1, 2.0),
+    "B: Kp=25 Ki=0.5 Kd=1.0": (25.0, 0.5, 1.0),
+    "C: Kp=10 Ki=0.0 Kd=8.0": (10.0, 0.0, 8.0),
+}
+SIM_DURATION = 10.0  # seconds
+
+def simulate(kp, ki, kd, duration=SIM_DURATION, theta0=0.1):
+    theta = theta0
+    theta_dot = 0.0
+    integral  = 0.0
+    prev_err  = 0.0
+    times, thetas, torques = [], [], []
+    t = 0.0
+    while t <= duration:
+        times.append(t)
+        thetas.append(np.degrees(theta))
+        error     = -theta
+        integral += error * dt
+        deriv     = (error - prev_err) / dt
+        prev_err  = error
+        tau = np.clip(kp * error + ki * integral + kd * deriv,
+                      -MOTOR_CLAMP, MOTOR_CLAMP)
+        torques.append(tau)
+        T_grav     = m * g * h * np.sin(theta)
+        theta_ddot = (T_grav + tau) / I
+        theta_dot += theta_ddot * dt
+        theta      = np.clip(theta + theta_dot * dt, -THETA_CLAMP, THETA_CLAMP)
+        t += dt
+    return np.array(times), np.array(thetas), np.array(torques)
+
+results = {label: simulate(*gains) for label, gains in CONFIGS.items()}
+
+# ── Figure 1: theta vs time ────────────────────────────────────────────────────
+_COLORS = ["#00d4ff", "#ffa500", "#e94560"]
+fig1, ax1 = plt.subplots(figsize=(10, 5))
+for (label, (t, th, _)), col in zip(results.items(), _COLORS):
+    ax1.plot(t, th, label=label, color=col, lw=1.8)
+ax1.axhline(0, color="white", lw=1.2, ls="--", label="Setpoint (0°)")
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Tilt angle (degrees)")
+ax1.set_title("PID Gain Comparison — Tilt Angle vs Time")
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+fig1.tight_layout()
+fig1.savefig("pid_response.png", dpi=150, bbox_inches="tight")
+plt.close(fig1)
+print("Saved pid_response.png")
+
+# ── Figure 2: motor torque vs time (three subplots) ───────────────────────────
+fig2, axes2 = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
+for ax, (label, (t, _, tau)), col in zip(axes2, results.items(), _COLORS):
+    ax.plot(t, tau, color=col, lw=1.5)
+    ax.axhline(0, color="gray", lw=0.8, ls="--")
+    ax.set_ylabel("τ_motor (N·m)")
+    ax.set_title(label)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(-MOTOR_CLAMP * 1.1, MOTOR_CLAMP * 1.1)
+axes2[-1].set_xlabel("Time (s)")
+fig2.suptitle("PID Motor Torque vs Time", fontsize=13)
+fig2.tight_layout()
+fig2.savefig("pid_torque.png", dpi=150, bbox_inches="tight")
+plt.close(fig2)
+print("Saved pid_torque.png")
+
 # ── Figure ────────────────────────────────────────────────────────────────────
 fig = plt.figure(figsize=(10, 6))
 fig.patch.set_facecolor("#1a1a2e")
